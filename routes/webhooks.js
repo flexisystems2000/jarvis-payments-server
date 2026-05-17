@@ -32,15 +32,12 @@ router.post("/paystack", async (req, res) => {
             const reference = paymentData.reference;
             const amountPaid = paymentData.amount / 100; // Convert from kobo to Naira
 
-            console.log(`💰 Payment Confirmed: ₦${amountPaid} from ${customerPhone || customerName}`);
+            console.log(`💰 Payment Confirmed: ₦${amountPaid} from ${customerPhone || customerName} | Ref: ${reference}`);
 
-            // Find the matching pending document in Firestore using the customer's phone number
-            if (customerPhone) {
-                // Normalize phone number to match how you store it (e.g., removing + or formatting)
-                const cleanPhone = customerPhone.replace(/[^0-9]/g, "");
-
+            // 🎯 FIXED TRACKING: Find the exact pending document using Paystack's reference token
+            if (reference) {
                 const snapshot = await db.collection("payment_requests")
-                    .where("phone", "==", cleanPhone)
+                    .where("paystackReference", "==", reference)
                     .where("status", "==", "pending")
                     .limit(1)
                     .get();
@@ -49,13 +46,13 @@ router.post("/paystack", async (req, res) => {
                     const docId = snapshot.docs[0].id;
                     await db.collection("payment_requests").doc(docId).update({
                         status: "completed",
-                        paystackReference: reference,
                         amountPaid: amountPaid,
                         paidAt: new Date()
                     });
-                    console.log(`✅ Firestore updated successfully for doc: ${docId}`);
+                    console.log(`✅ Firestore updated successfully for transaction reference: ${reference}`);
                 } else {
-                    // Fallback: If no pending request was found, create a new record anyway so they get credited
+                    // Fallback: If no match exists, log it cleanly anyway using the normalized phone info
+                    const cleanPhone = customerPhone ? customerPhone.replace(/[^0-9]/g, "") : "N/A";
                     await db.collection("payment_requests").add({
                         name: customerName || "Paystack User",
                         phone: cleanPhone,
@@ -65,7 +62,7 @@ router.post("/paystack", async (req, res) => {
                         createdAt: new Date(),
                         paidAt: new Date()
                     });
-                    console.log(`📝 No pending match found. Created raw verified receipt in Firestore.`);
+                    console.log(`📝 Reference mismatch fallback. Logged direct receipt.`);
                 }
             }
         }
@@ -77,4 +74,3 @@ router.post("/paystack", async (req, res) => {
 });
 
 module.exports = router;
-                        
