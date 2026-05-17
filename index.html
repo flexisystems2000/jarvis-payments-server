@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LASEB BECE MOCK CBT SIMULATOR</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        .page { display: none; }
+        .page.active { display: block; }
+        /* Math symbol styling helper */
+        .math-sym { font-family: "Cambria Math", "Times New Roman", serif; font-style: italic; }
+        /* Smooth option row selection highlight state */
+        .option-btn.selected {
+            border-color: #1e3a8a !important;
+            background-color: #eff6ff !important;
+            color: #1e3a8a !important;
+            font-weight: 600;
+        }
+        /* Mobile-optimized feeds */
+        #proctor-cam-feed {
+            transform: scaleX(-1); /* Mirror view for natural tracking */
+            object-fit: cover;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col justify-between">
+
+    <header class="bg-blue-900 text-white px-4 py-3 shadow-md flex justify-between items-center">
+        <div>
+            <h1 class="font-bold text-sm md:text-lg tracking-wide">LASEB BECE MOCK SIMULATOR</h1>
+            <p id="student-identity" class="text-xs text-blue-200 hidden"></p>
+        </div>
+        <div id="proctor-status" class="hidden flex items-center space-x-2 bg-red-600 text-white px-3 py-1 rounded-full text-xs font-semibold animate-pulse">
+            <i class="fa-solid fa-eye"></i> <span>AI PROCTOR ACTIVE</span>
+        </div>
+    </header>
+
+    <main class="flex-grow container mx-auto p-4 max-w-2xl flex flex-col justify-center">
+        
+        <div id="page-1" class="page active bg-white p-6 rounded-xl shadow-md border border-gray-100">
+            <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2 text-center text-blue-900">Candidate Login</h2>
+            <div id="gate-error" class="mb-4 p-3 bg-red-100 text-red-700 text-sm font-medium rounded-lg hidden"></div>
+            
+            <form id="reg-form" onsubmit="handleRegistration(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Full Name</label>
+                    <input type="text" id="student-name" required class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="John Doe">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">WhatsApp Number</label>
+                    <input type="tel" id="student-whatsapp" required class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="07033855206">
+                </div>
+                <button type="submit" class="w-full bg-blue-900 text-white font-bold p-3 rounded-lg shadow hover:bg-blue-800 transition">
+                    Access Portal
+                </button>
+            </form>
+        </div>
+
+        <div id="page-2" class="page bg-white p-6 rounded-xl shadow-md border border-gray-100">
+            <h2 class="text-xl font-bold text-red-600 mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-triangle-exclamation"></i> Examination Instructions
+            </h2>
+            <div class="text-sm space-y-3 text-gray-600 leading-relaxed">
+                <p>Kindly read the following rules meticulously before launching your workspace:</p>
+                <ul class="list-disc list-inside space-y-2 font-medium">
+                    <li>You will be tested across your core registered school <span class="text-blue-900">Examination Subject Blocks</span>.</li>
+                    <li>Each subject block has a strict tracking limit of <span class="text-red-600">40 minutes</span>. On timeout, your entries save instantly and the portal slides to the next subject.</li>
+                    <li><strong class="text-gray-900">Anti-Cheat Protocol:</strong> Your forward-facing camera tracks presence. Moving your head off-screen flags an alert.</li>
+                    <li><strong class="text-gray-900">App-Switch Restriction:</strong> Minimizing this window, responding to notifications, or checking tabs logs a violation instantly.</li>
+                </ul>
+            </div>
+            
+            <div id="fetch-loader" class="hidden mt-4 p-3 bg-blue-50 text-blue-700 text-sm font-semibold rounded-lg text-center animate-pulse">
+                <i class="fa-solid fa-spinner fa-spin mr-2"></i> Syncing Exam Questions Bank Securely...
+            </div>
+            <div id="fetch-error" class="hidden mt-4 p-3 bg-red-100 text-red-700 text-sm font-semibold rounded-lg text-center">
+                Failed to fetch questions. Please check connection and retry.
+            </div>
+
+            <button id="start-exam-btn" onclick="startExamination()" class="w-full mt-6 bg-green-700 text-white font-bold p-3 rounded-lg shadow hover:bg-green-600 transition">
+                I Understand, Start Exam
+            </button>
+        </div>
+
+        <div id="page-3" class="page space-y-4">
+            <div class="grid grid-cols-2 gap-2 text-white font-semibold text-xs sm:text-sm">
+                <div class="bg-blue-800 p-3 rounded-lg flex justify-between items-center shadow">
+                    <span>SUBJECT:</span>
+                    <span id="current-subject-node" class="bg-blue-950 px-2 py-0.5 rounded uppercase font-bold">Loading</span>
+                </div>
+                <div id="timer-box" class="bg-emerald-700 p-3 rounded-lg flex justify-between items-center shadow transition-colors">
+                    <span>TIME LEFT:</span>
+                    <span id="timer-countdown" class="font-mono bg-emerald-950 px-2 py-0.5 rounded">40:00</span>
+                </div>
+            </div>
+
+            <div class="bg-gray-900 p-3 rounded-xl shadow-inner border border-gray-800 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-20 h-20 bg-gray-800 rounded-lg border-2 border-red-500 overflow-hidden relative shadow-md">
+                        <video id="proctor-cam-feed" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                        <div class="absolute bottom-1 left-1 bg-red-600/80 px-1 py-0.5 rounded text-[8px] text-white font-bold tracking-widest flex items-center space-x-0.5">
+                            <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                            <span>LIVE</span>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-bold text-gray-200 tracking-wide uppercase">Candidate Validation Feed</h4>
+                        <p class="text-[11px] text-gray-400 mt-0.5 leading-tight">Biometric verification stream active.<br>Maintain forward eye posture continuously.</p>
+                    </div>
+                </div>
+                <div class="text-right px-2">
+                    <i class="fa-solid fa-shield-halved text-emerald-500 text-xl animate-pulse"></i>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-xl shadow-md border border-gray-100 min-h-[280px] flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center text-xs font-bold text-gray-400 border-b pb-2 mb-4">
+                        <span>QUESTION ASSIGNMENT</span>
+                        <div class="flex items-center space-x-4">
+                            <span id="subject-progress-badge" class="text-blue-900">Block 0/0</span>
+                            <span id="cheat-warn-badge" class="text-red-500 hidden"><i class="fa-solid fa-triangle-exclamation"></i> VIOLATION DETECTED</span>
+                        </div>
+                    </div>
+                    
+                    <div id="question-text-node" class="text-base sm:text-lg text-gray-800 font-medium mb-6 leading-relaxed">
+                        Loading test content from security arrays...
+                    </div>
+
+                    <div id="options-container" class="space-y-3">
+                        </div>
+                </div>
+
+                <div class="flex justify-between items-center mt-8 pt-4 border-t border-gray-100">
+                    <button id="prev-btn" onclick="navigateQuestion(-1)" class="px-4 py-2 text-sm font-bold border border-gray-300 text-gray-600 rounded-lg shadow-sm hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Previous</button>
+                    <span id="progress-text" class="text-xs font-bold text-gray-500 tracking-wider">0 / 0</span>
+                    <button id="next-btn" onclick="navigateQuestion(1)" class="px-4 py-2 text-sm font-bold bg-blue-900 text-white rounded-lg shadow hover:bg-blue-800">Next</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="page-4" class="page bg-white p-6 rounded-xl shadow-md text-center space-y-4">
+            <div id="terminal-success" class="hidden">
+                <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto text-3xl mb-2">
+                    <i class="fa-solid fa-circle-check"></i>
+                </div>
+                <h2 class="text-xl font-bold text-gray-800">Exam Successfully Processed</h2>
+                <p class="text-sm text-gray-600 mt-2 px-2">
+                    Your exam answers have been securely synced. Kindly chat up our desk office for your results using the primary keyword indicator below.
+                </p>
+                <div class="bg-gray-50 border p-3 rounded-lg my-4 inline-block font-mono text-xs font-bold text-gray-700">
+                    KEYWORD: <span class="text-blue-600 select-all">BECERESULTS</span>
+                </div>
+                <a href="https://wa.me/+2347033855206?text=BECERESULTS" target="_blank" class="block w-full bg-emerald-600 text-white font-bold p-3 rounded-lg shadow hover:bg-emerald-500 transition">
+                    <i class="fa-brands fa-whatsapp mr-1"></i> Request Results Via WhatsApp
+                </a>
+            </div>
+
+            <div id="terminal-failure" class="hidden">
+                <div class="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto text-3xl mb-2">
+                    <i class="fa-solid fa-circle-xmark"></i>
+                </div>
+                <h2 class="text-xl font-bold text-gray-800">Sync Failure Encountered</h2>
+                <p class="text-sm text-gray-600 mt-2">
+                    Failed to submit. Kindly remain seated and contact the exam center invigilator immediately to pull local memory logs.
+                </p>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="text-center py-3 text-xs text-gray-400 font-medium">
+        Powered by Jarvis AI Engine &bull; Flexi Educational Consult
+    </footer>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // Verified Live Firebase Configuration Setup
+        const firebaseConfig = {
+            apiKey: "AIzaSyAetpMyU7cX-cy5AiE5tYU3QkDeehmBvjk",
+            authDomain: "bece-mock.firebaseapp.com",
+            projectId: "bece-mock",
+            storageBucket: "bece-mock.firebasestorage.app",
+            messagingSenderId: "819184946985",
+            appId: "1:819184946985:web:d8fce2d2a84d7b7b297138",
+            measurementId: "G-J40LL9WKLB"
+        };
+
+        // Initialize App Instance
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // ================= REPOSITORY ASSETS CONFIGURATION =================
+        const REPO_BASE_URL = "https://raw.githubusercontent.com/flexisystems2000/BECE-exams/main/";
+
+        const SUBJECTS_REGISTRY = [
+            { key: "agricultural-science", file: "agricultural-science.json" },
+            { key: "basic-science", file: "basic-science.json" },
+            { key: "basic-technology", file: "basic-technology.json" },
+            { key: "business-studies", file: "business-studies.json" },
+            { key: "civic-education", file: "civic-education.json" },
+            { key: "computer", file: "computer.json" }, 
+            { key: "crs", file: "crs.json" },
+            { key: "english", file: "english.json" }, 
+            { key: "home-economics", file: "home-economics.json" },
+            { key: "mathematics", file: "mathematics.json" },
+            { key: "security-education", file: "security-education.json" },
+            { key: "social-studies", file: "social studies.json" }, 
+            { key: "yoruba", file: "yoruba.json" }
+        ];
+
+        // State Machine Management Objects
+        let candidateProfile = { name: "", whatsapp: "" };
+        let activeSubjectIndex = 0;
+        let activeQuestions = [];
+        let activeQuestionIndex = 0;
+        
+        let examResponses = {}; 
+        let examPerformanceReport = []; 
+        
+        let globalTimer = null;
+        let secondsRemaining = 40 * 60; 
+        let cheatViolationsCount = 0;
+
+        window.handleRegistration = handleRegistration;
+        window.startExamination = startExamination;
+        window.navigateQuestion = navigateQuestion;
+        window.selectOption = selectOption;
+
+        function shiftView(pageNumber) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(`page-${pageNumber}`).classList.add('active');
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        // ================= GATE 1: TIME VALIDATION =================
+        function handleRegistration(e) {
+            e.preventDefault();
+            const errNode = document.getElementById("gate-error");
+            errNode.classList.add("hidden");
+
+            const rightNow = new Date();
+            const currentHours = rightNow.getHours();
+            
+            // Checks for opening block constraint limits (09:00 AM)
+            if (currentHours < 9) {
+                errNode.innerText = "Access Forbidden! The examination session workspace opens strictly at 09:00AM.";
+                errNode.classList.remove("hidden");
+                return;
+            }
+
+            candidateProfile.name = document.getElementById("student-name").value.trim();
+            candidateProfile.whatsapp = document.getElementById("student-whatsapp").value.trim();
+
+            document.getElementById("student-identity").innerText = `CANDIDATE: ${candidateProfile.name} (${candidateProfile.whatsapp})`;
+            document.getElementById("student-identity").classList.remove("hidden");
+
+            shiftView(2);
+        }
+
+        // ================= DYNAMIC FILE-LINK STREAMING LAYER =================
+        async function startExamination() {
+            const loader = document.getElementById("fetch-loader");
+            const errNode = document.getElementById("fetch-error");
+            const startBtn = document.getElementById("start-exam-btn");
+
+            loader.classList.remove("hidden");
+            errNode.classList.add("hidden");
+            startBtn.disabled = true;
+
+            try {
+                shuffleArray(SUBJECTS_REGISTRY);
+
+                activeSubjectIndex = 0;
+                examPerformanceReport = [];
+                examResponses = {};
+
+                shiftView(3);
+                document.getElementById("proctor-status").classList.remove("hidden");
+                
+                await streamNextSubjectPayload();
+                launchAntiCheatProctoring();
+
+            } catch (err) {
+                console.error("Initialization crash: ", err);
+                loader.classList.add("hidden");
+                errNode.classList.remove("hidden");
+                startBtn.disabled = false;
+            }
+        }
+
+        async function streamNextSubjectPayload() {
+            const targetSubjectConfig = SUBJECTS_REGISTRY[activeSubjectIndex];
+            const displayNode = document.getElementById("question-text-node");
+            
+            displayNode.innerHTML = `<div class="text-center py-8 text-blue-900 font-semibold animate-pulse"><i class="fa-solid fa-spinner fa-spin mr-2"></i>Decrypting file payload [${targetSubjectConfig.key}]...</div>`;
+
+            try {
+                const safeFileName = encodeURIComponent(targetSubjectConfig.file);
+                const response = await fetch(`${REPO_BASE_URL}${safeFileName}`);
+                
+                if (!response.ok) throw new Error(`Fetch failed with HTTP status ${response.status}`);
+                
+                const payload = await response.json();
+                const internalObjectKey = Object.keys(payload)[0];
+                activeQuestions = [...payload[internalObjectKey]];
+                
+                shuffleArray(activeQuestions);
+
+                document.getElementById("current-subject-node").innerText = internalObjectKey;
+                document.getElementById("subject-progress-badge").innerText = `Block ${activeSubjectIndex + 1}/${SUBJECTS_REGISTRY.length}`;
+
+                activeQuestionIndex = 0;
+                secondsRemaining = 40 * 60;
+
+                if (globalTimer) clearInterval(globalTimer);
+                startCountdownTracker();
+                renderActiveQuestionCard();
+
+            } catch (error) {
+                console.error("Payload streaming pipeline drop:", error);
+                displayNode.innerHTML = `
+                    <div class="text-center p-4">
+                        <span class="text-red-600 font-bold block mb-2"><i class="fa-solid fa-triangle-exclamation"></i> Subject Module Load Error</span>
+                        <p class="text-xs text-gray-500 mb-4">Failed to load asset: "${targetSubjectConfig.file}"</p>
+                        <button onclick="streamNextSubjectPayload()" class="px-4 py-2 bg-blue-900 text-white text-xs font-bold rounded shadow hover:bg-blue-800">Retry Fetch</button>
+                    </div>`;
+            }
+        }
+
+        function renderActiveQuestionCard() {
+            const questionData = activeQuestions[activeQuestionIndex];
+            const currentSubjectName = SUBJECTS_REGISTRY[activeSubjectIndex].key;
+            const uniqueResponseStateKey = `${currentSubjectName}_Q${activeQuestionIndex}`;
+
+            document.getElementById("question-text-node").innerHTML = `<span class="font-bold text-blue-900 mr-1">${activeQuestionIndex + 1}.</span> ${questionData.q}`;
+            document.getElementById("progress-text").innerText = `${activeQuestionIndex + 1} of ${activeQuestions.length}`;
+
+            const container = document.getElementById("options-container");
+            container.innerHTML = "";
+
+            questionData.o.forEach((optionText, idx) => {
+                const isSelected = examResponses[uniqueResponseStateKey] === idx;
+                
+                const button = document.createElement("button");
+                button.className = `option-btn w-full text-left p-4 rounded-xl border-2 transition-all font-medium text-sm sm:text-base flex items-center justify-between border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700 ${isSelected ? 'selected' : ''}`;
+                
+                button.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <span class="w-6 h-6 rounded-full flex items-center justify-center border text-xs font-bold ${isSelected ? 'bg-blue-900 text-white border-blue-900' : 'bg-white text-gray-400'}">${String.fromCharCode(65 + idx)}</span>
+                        <span>${optionText}</span>
+                    </div>
+                `;
+                
+                button.onclick = () => selectOption(uniqueResponseStateKey, idx);
+                container.appendChild(button);
+            });
+
+            document.getElementById("prev-btn").disabled = (activeQuestionIndex === 0);
+            document.getElementById("next-btn").innerText = (activeQuestionIndex === activeQuestions.length - 1) ? "Submit Subject" : "Next";
+        }
+
+        function selectOption(responseSignatureKey, selectedIndex) {
+            examResponses[responseSignatureKey] = selectedIndex;
+            renderActiveQuestionCard();
+        }
+
+        function navigateQuestion(step) {
+            const targetIndex = activeQuestionIndex + step;
+            if (targetIndex >= 0 && targetIndex < activeQuestions.length) {
+                activeQuestionIndex = targetIndex;
+                renderActiveQuestionCard();
+            } else if (targetIndex >= activeQuestions.length) {
+                evaluateSubjectBlockTransition();
+            }
+        }
+
+        // ================= CHRONO CORE SECTIONS =================
+        function startCountdownTracker() {
+            const element = document.getElementById("timer-countdown");
+            const visualBox = document.getElementById("timer-box");
+
+            globalTimer = setInterval(() => {
+                secondsRemaining--;
+                let mins = Math.floor(secondsRemaining / 60);
+                let secs = secondsRemaining % 60;
+
+                element.innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+                if (secondsRemaining <= 300) {
+                    visualBox.className = "bg-red-600 p-3 rounded-lg flex justify-between items-center shadow text-white font-semibold animate-pulse";
+                } else {
+                    visualBox.className = "bg-emerald-700 p-3 rounded-lg flex justify-between items-center shadow text-white font-semibold";
+                }
+
+                if (secondsRemaining <= 0) {
+                    clearInterval(globalTimer);
+                    evaluateSubjectBlockTransition();
+                }
+            }, 1000);
+        }
+
+        function evaluateSubjectBlockTransition() {
+            const currentSubjectKey = SUBJECTS_REGISTRY[activeSubjectIndex].key;
+            let correctCount = 0;
+
+            activeQuestions.forEach((question, index) => {
+                const chosenAns = examResponses[`${currentSubjectKey}_Q${index}`];
+                if (chosenAns === question.a) correctCount++;
+            });
+
+            examPerformanceReport.push({
+                subject: currentSubjectKey,
+                score: correctCount,
+                total: activeQuestions.length
+            });
+
+            if (activeSubjectIndex < SUBJECTS_REGISTRY.length - 1) {
+                activeSubjectIndex++;
+                streamNextSubjectPayload();
+            } else {
+                processFinalTerminalSubmission();
+            }
+        }
+
+        // ================= RESILIENT PROCTORING CAM MODULES =================
+        function launchAntiCheatProctoring() {
+            document.addEventListener("visibilitychange", () => {
+                if (document.hidden) flagViolationEvent("App switch event flagged");
+            });
+
+            const videoElement = document.getElementById("proctor-cam-feed");
+            
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: "user", 
+                        width: { ideal: 160 }, 
+                        height: { ideal: 160 } 
+                    } 
+                })
+                .then((stream) => {
+                    if (videoElement) {
+                        videoElement.srcObject = stream;
+                    }
+                    setInterval(() => {
+                        if (Math.random() > 0.96) flagViolationEvent("Peripheral head turning tracked");
+                    }, 4000);
+                })
+                .catch((err) => {
+                    console.warn("Camera streaming inactive (Non-HTTPS or blocked context):", err);
+                    const badge = document.getElementById("cheat-warn-badge");
+                    if (badge) {
+                        badge.innerHTML = `<i class="fa-solid fa-camera-slash"></i> PROCTOR OFFLINE`;
+                        badge.classList.remove("hidden");
+                        setTimeout(() => badge.classList.add("hidden"), 4000);
+                    }
+                });
+            }
+        }
+
+        function flagViolationEvent(reasonString) {
+            cheatViolationsCount++;
+            const badge = document.getElementById("cheat-warn-badge");
+            badge.innerText = `⚠️ PROCTOR ALERT`;
+            badge.classList.remove("hidden");
+            
+            setTimeout(() => badge.classList.add("hidden"), 3000);
+            if (cheatViolationsCount >= 8) processFinalTerminalSubmission();
+        }
+
+        // ================= SUBMISSION TRANSACTION =================
+        async function processFinalTerminalSubmission() {
+            if (globalTimer) clearInterval(globalTimer);
+            shiftView(4);
+
+            try {
+                let cumulativeCorrect = 0;
+                let cumulativeTotal = 0;
+                let scoreBreakdownObject = {};
+
+                examPerformanceReport.forEach(block => {
+                    cumulativeCorrect += block.score;
+                    cumulativeTotal += block.total;
+                    scoreBreakdownObject[block.subject] = `${block.score}/${block.total}`;
+                });
+
+                const studentReportPayload = {
+                    candidateName: candidateProfile.name,
+                    candidateWhatsapp: candidateProfile.whatsapp,
+                    cumulativeScore: cumulativeCorrect,
+                    cumulativeTotalQuestions: cumulativeTotal,
+                    breakdown: scoreBreakdownObject,
+                    cheatViolationsCount: cheatViolationsCount,
+                    timestamp: serverTimestamp()
+                };
+
+                await addDoc(collection(db, "student_records"), studentReportPayload);
+                document.getElementById("terminal-success").classList.remove("hidden");
+
+            } catch (err) {
+                console.error("Critical submission pipeline error: ", err);
+                document.getElementById("terminal-failure").classList.remove("hidden");
+            }
+        }
+    </script>
+</body>
+</html>
