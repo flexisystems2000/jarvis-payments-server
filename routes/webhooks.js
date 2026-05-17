@@ -1,7 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const crypto = require("crypto");
+const axios = require("axios");
 const db = require("../services/firestore");
+
+// 🔥 POINT THIS TO YOUR WHATSAPP BOT'S PUBLIC URL (e.g., another Render instance or Ngrok)
+const WHATSAPP_BOT_URL = process.env.WHATSAPP_BOT_URL || "https://your-whatsapp-bot-url.onrender.com";
 
 // =====================================================
 // PAYSTACK WEBHOOK (Autopilot Confirmation)
@@ -27,15 +31,23 @@ router.post("/paystack", async (req, res) => {
         // Listen explicitly for successful transactions
         if (event.event === "charge.success") {
             const paymentData = event.data;
-            const customerPhone = paymentData.customer.phone;
-            const customerName = `${paymentData.customer.first_name || ""} ${paymentData.customer.last_name || ""}`.trim();
+            
+            // Extract metadata fields we saved during initialization
+            const metadataFields = paymentData.metadata?.custom_fields || [];
+            const phoneField = metadataFields.find(f => f.variable_name === "phone_number")?.value;
+            const planField = metadataFields.find(f => f.variable_name === "plan_type")?.value || "Flexi Tutorials Access";
+            
             const reference = paymentData.reference;
             const amountPaid = paymentData.amount / 100; // Convert from kobo to Naira
 
-            console.log(`💰 Payment Confirmed: ₦${amountPaid} from ${customerPhone || customerName} | Ref: ${reference}`);
+            // Fallback to customer phone if metadata is completely empty
+            const rawPhone = phoneField || paymentData.customer.phone || "";
+            const cleanPhone = rawPhone.replace(/[^0-9]/g, "");
 
-            // 🎯 FIXED TRACKING: Find the exact pending document using Paystack's reference token
-            if (reference) {
+            console.log(`💰 Payment Confirmed: ₦${amountPaid} from ${cleanPhone} | Ref: ${reference}`);
+
+            if (reference && cleanPhone) {
+                // 1. Update the document status to "completed" inside Firestore
                 const snapshot = await db.collection("payment_requests")
                     .where("paystackReference", "==", reference)
                     .where("status", "==", "pending")
@@ -49,28 +61,41 @@ router.post("/paystack", async (req, res) => {
                         amountPaid: amountPaid,
                         paidAt: new Date()
                     });
-                    console.log(`✅ Firestore updated successfully for transaction reference: ${reference}`);
+                    console.log(`✅ Firestore updated to completed for reference: ${reference}`);
                 } else {
-                    // Fallback: If no match exists, log it cleanly anyway using the normalized phone info
-                    const cleanPhone = customerPhone ? customerPhone.replace(/[^0-9]/g, "") : "N/A";
+                    // Fallback: Create completed record if it doesn't exist yet
                     await db.collection("payment_requests").add({
-                        name: customerName || "Paystack User",
                         phone: cleanPhone,
+                        item: planField,
                         status: "completed",
                         paystackReference: reference,
                         amountPaid: amountPaid,
                         createdAt: new Date(),
                         paidAt: new Date()
                     });
-                    console.log(`📝 Reference mismatch fallback. Logged direct receipt.`);
+                    console.log(`📝 Created direct completed receipt in Firestore.`);
+                }
+
+                // 2. 🚀 THE WEBHOOK EVENT TRIGGER: Alert your WhatsApp Bot immediately!
+                try {
+                    console.log(`📡 Pinging WhatsApp Bot server for phone: ${cleanPhone}`);
+                    await axios.post(`${WHATSAPP_BOT_URL}/payment-success`, {
+                        phone: cleanPhone,
+                        plan: planField
+                    }, {
+                        headers: { "Content-Type": "application/json" }
+                    });
+                    console.log(`🎉 WhatsApp Bot successfully notified.`);
+                } catch (botErr) {
+                    console.log("❌ Failed to contact WhatsApp bot endpoint:", botErr.message);
                 }
             }
         }
     } catch (err) {
         console.log("❌ Paystack Webhook Error:", err.message);
-        // Fallback safety ensure server doesn't crash
         if (!res.headersSent) res.sendStatus(500);
     }
 });
 
 module.exports = router;
+
