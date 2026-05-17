@@ -5,7 +5,7 @@ const axios = require("axios");
 const db = require("../services/firestore");
 
 // 🔥 Point this to your live Jarvis AI Bot URL on Render or wherever it's hosted
-const WHATSAPP_BOT_URL = process.env.WHATSAPP_BOT_URL || "https://your-jarvis-bot-url.onrender.com";
+const WHATSAPP_BOT_URL = process.env.WHATSAPP_BOT_URL || "https://jarvisaiserver.onrender.com";
 
 // =====================================================
 // PAYSTACK WEBHOOK (Autopilot Confirmation)
