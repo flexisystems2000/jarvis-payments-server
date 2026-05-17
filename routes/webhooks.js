@@ -4,15 +4,15 @@ const crypto = require("crypto");
 const axios = require("axios");
 const db = require("../services/firestore");
 
-// 🔥 POINT THIS TO YOUR WHATSAPP BOT'S PUBLIC URL (e.g., another Render instance or Ngrok)
-const WHATSAPP_BOT_URL = process.env.WHATSAPP_BOT_URL || "https://your-whatsapp-bot-url.onrender.com";
+// 🔥 Point this to your live Jarvis AI Bot URL on Render or wherever it's hosted
+const WHATSAPP_BOT_URL = process.env.WHATSAPP_BOT_URL || "https://your-jarvis-bot-url.onrender.com";
 
 // =====================================================
 // PAYSTACK WEBHOOK (Autopilot Confirmation)
 // =====================================================
 router.post("/paystack", async (req, res) => {
     try {
-        // 🔒 SECURITY GUARD: Validate that this request actually came from Paystack
+        // 🔒 Validate that this request actually came from Paystack
         const hash = crypto
             .createHmac("sha512", process.env.PAYSTACK_SECRET_KEY)
             .update(JSON.stringify(req.body))
@@ -23,31 +23,27 @@ router.post("/paystack", async (req, res) => {
             return res.sendStatus(401);
         }
 
-        // Send Paystack an immediate 200 OK so they don't timeout or retry
+        // Fast 200 OK acknowledgment to Paystack
         res.sendStatus(200);
 
         const event = req.body;
 
-        // Listen explicitly for successful transactions
         if (event.event === "charge.success") {
             const paymentData = event.data;
-            
-            // Extract metadata fields we saved during initialization
+            const reference = paymentData.reference;
+            const amountPaid = paymentData.amount / 100;
+
+            // Gather metadata fields you initialized earlier
             const metadataFields = paymentData.metadata?.custom_fields || [];
             const phoneField = metadataFields.find(f => f.variable_name === "phone_number")?.value;
             const planField = metadataFields.find(f => f.variable_name === "plan_type")?.value || "Flexi Tutorials Access";
             
-            const reference = paymentData.reference;
-            const amountPaid = paymentData.amount / 100; // Convert from kobo to Naira
-
-            // Fallback to customer phone if metadata is completely empty
+            // Fallback strategy if custom fields aren't parsed
             const rawPhone = phoneField || paymentData.customer.phone || "";
             const cleanPhone = rawPhone.replace(/[^0-9]/g, "");
 
-            console.log(`💰 Payment Confirmed: ₦${amountPaid} from ${cleanPhone} | Ref: ${reference}`);
-
             if (reference && cleanPhone) {
-                // 1. Update the document status to "completed" inside Firestore
+                // 1. Update status to completed inside Firestore
                 const snapshot = await db.collection("payment_requests")
                     .where("paystackReference", "==", reference)
                     .where("status", "==", "pending")
@@ -61,9 +57,9 @@ router.post("/paystack", async (req, res) => {
                         amountPaid: amountPaid,
                         paidAt: new Date()
                     });
-                    console.log(`✅ Firestore updated to completed for reference: ${reference}`);
+                    console.log(`✅ Firestore updated to completed for: ${reference}`);
                 } else {
-                    // Fallback: Create completed record if it doesn't exist yet
+                    // Fallback log entry if initialization record wasn't present
                     await db.collection("payment_requests").add({
                         phone: cleanPhone,
                         item: planField,
@@ -73,29 +69,25 @@ router.post("/paystack", async (req, res) => {
                         createdAt: new Date(),
                         paidAt: new Date()
                     });
-                    console.log(`📝 Created direct completed receipt in Firestore.`);
                 }
 
-                // 2. 🚀 THE WEBHOOK EVENT TRIGGER: Alert your WhatsApp Bot immediately!
+                // 2. 📡 THE REVOLUTION TRIGGER: Ping the WhatsApp Bot instantly
                 try {
-                    console.log(`📡 Pinging WhatsApp Bot server for phone: ${cleanPhone}`);
+                    console.log(`📡 Pinging Jarvis Bot for student phone: ${cleanPhone}`);
                     await axios.post(`${WHATSAPP_BOT_URL}/payment-success`, {
                         phone: cleanPhone,
                         plan: planField
                     }, {
                         headers: { "Content-Type": "application/json" }
                     });
-                    console.log(`🎉 WhatsApp Bot successfully notified.`);
                 } catch (botErr) {
-                    console.log("❌ Failed to contact WhatsApp bot endpoint:", botErr.message);
+                    console.log("❌ Webhook couldn't hit your WhatsApp bot service route:", botErr.message);
                 }
             }
         }
     } catch (err) {
-        console.log("❌ Paystack Webhook Error:", err.message);
-        if (!res.headersSent) res.sendStatus(500);
+        console.log("❌ Paystack Webhook Engine Error:", err.message);
     }
 });
 
 module.exports = router;
-
