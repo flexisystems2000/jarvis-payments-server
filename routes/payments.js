@@ -76,4 +76,43 @@ router.post("/initialize", async (req, res) => {
     }
 });
 
+// =====================================================
+// 📝 NEW: SECURE PROFILE NAME REGISTRATION FOR JARVIS
+// =====================================================
+router.post("/register-user", async (req, res) => {
+    try {
+        const { phone, name } = req.body;
+        
+        if (!phone || !name) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Missing phone or name parameters." 
+            });
+        }
+
+        // Sanitize the phone tag to match your collection logic
+        const cleanPhone = phone.replace(/[^0-9]/g, "");
+
+        // Save cleanly into your main operational 'users' collection
+        await db.collection("users").doc(cleanPhone).set({
+            name: name,
+            phone: cleanPhone,
+            updatedAt: new Date()
+        }, { merge: true });
+
+        return res.json({ 
+            success: true, 
+            message: "User registered successfully on backend cluster." 
+        });
+
+    } catch (error) {
+        console.error("Backend User Registration Error:", error.message);
+        return res.status(500).json({ 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
 module.exports = router;
+    
