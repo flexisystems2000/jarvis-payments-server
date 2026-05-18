@@ -12,10 +12,29 @@ const webhookRoutes =
 const app = express();
 
 // =====================================================
-// MIDDLEWARE
+// SECURITY + CORS
 // =====================================================
 
 app.use(cors());
+
+// =====================================================
+// VERY IMPORTANT:
+// PAYSTACK WEBHOOK RAW BODY HANDLER
+// =====================================================
+
+// Paystack signs RAW request body.
+// This MUST come BEFORE express.json()
+
+app.use(
+    "/webhooks/paystack",
+    express.raw({
+        type: "application/json"
+    })
+);
+
+// =====================================================
+// NORMAL JSON PARSER
+// =====================================================
 
 app.use(express.json({
     limit: "10mb"
@@ -24,6 +43,20 @@ app.use(express.json({
 app.use(express.urlencoded({
     extended: true
 }));
+
+// =====================================================
+// REQUEST LOGGER (OPTIONAL BUT USEFUL)
+// =====================================================
+
+app.use((req, res, next) => {
+
+    console.log(
+        `📡 ${req.method} ${req.originalUrl}`
+    );
+
+    next();
+
+});
 
 // =====================================================
 // ROUTES
@@ -40,17 +73,59 @@ app.use(
 );
 
 // =====================================================
-// HOME
+// HOME ROUTE
 // =====================================================
 
 app.get("/", (req, res) => {
 
-    res.json({
+    res.status(200).json({
 
         success: true,
 
+        server: "Jarvis Payment Server",
+
+        status: "ONLINE",
+
+        timestamp: Date.now()
+
+    });
+
+});
+
+// =====================================================
+// 404 HANDLER
+// =====================================================
+
+app.use((req, res) => {
+
+    res.status(404).json({
+
+        success: false,
+
         message:
-            "💰 Jarvis Payment Server Online"
+            "❌ Route Not Found"
+
+    });
+
+});
+
+// =====================================================
+// GLOBAL ERROR HANDLER
+// =====================================================
+
+app.use((err, req, res, next) => {
+
+    console.log(
+        "❌ GLOBAL SERVER ERROR:",
+        err.message
+    );
+
+    res.status(500).json({
+
+        success: false,
+
+        error:
+            "Internal Server Error"
 
     });
 
@@ -66,7 +141,7 @@ const PORT =
 app.listen(PORT, () => {
 
     console.log(
-        `🚀 Payment Server Running On ${PORT}`
+        `🚀 Payment Server Running On Port ${PORT}`
     );
 
 });
